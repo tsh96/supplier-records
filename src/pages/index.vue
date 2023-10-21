@@ -238,16 +238,16 @@ function upload() {
         n-button(type="error") Delete Supplier
     n-button(type="primary" @click="showAddSupplierForm()") Add Supplier
   .overflow-auto.flex-grow.outline.outline-1.outline-grey.pb-100
-    n-table(:bordered="false" style="overflow: visible;" size="small")
+    n-table(v-if="supplierAccount" :bordered="false" style="overflow: visible;" size="small")
       thead.sticky.top-0.z-3
         tr
           th.w-10.min-w-10
           th.w-38.min-w-38 Date
           th.w-50.min-w-50 Invoice No.
-          th.w-50.min-w-50 Amt #[n-tag(type="success") SUM: {{ format(supplierAccount?.items.reduce((sum, item) => sum + item.invoiceAmount, 0)) }}]
+          th.w-50.min-w-50 Amt #[n-tag(type="success") SUM: {{ format(supplierAccount.items.reduce((sum, item) => sum + item.invoiceAmount, 0)) }}]
           th.w-38.min-w-38 Date
           th.w-50.min-w-50 Cheque No.
-          th.w-50.min-w-50 Amt #[n-tag(type="success") SUM: {{ format(supplierAccount?.items.reduce((sum, item) => sum + item.chequeAmount, 0)) }}]
+          th.w-50.min-w-50 Amt #[n-tag(type="success") SUM: {{ format(supplierAccount.items.reduce((sum, item) => sum + item.chequeAmount, 0)) }}]
           th.min-w-30 Remark
           th.w-10
             .i-carbon-add-alt(hover="bg-green-7 cursor-pointer" @click="addItem")
@@ -293,7 +293,13 @@ function upload() {
                 n-input(v-model:value="item.remark" size="small")
           td
             .i-carbon-subtract-alt(hover="bg-red-7 cursor-pointer" @click="removeItem(i)")
-
+    .flex.flex-col.items-center.justify-center.h-full(v-else)
+      n-empty(size="huge")
+        div
+          .text-center.text-3xl No Supplier Selected
+          .text-center.text-3xl Please select a supplier to view its records.
+          .text-center.text-3xl.flex.items-center You can add a new supplier by clicking
+            n-button(type="primary" @click="showAddSupplierForm()" style="margin-left: 8px") Add Supplier
   n-modal(v-model:show="addSupplierForm.show" preset="dialog" title="Add Supplier")
     n-form(:model="addSupplierForm" :rules="addSupplierRule" ref="addSupplierFormRef")
       n-form-item(label="Supplier Name" path="supplierName")
