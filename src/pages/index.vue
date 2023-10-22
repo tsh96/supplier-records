@@ -1,4 +1,6 @@
 <script setup lang="ts" generic="T extends any, O extends any">
+import { startOfMonth, startOfQuarter, startOfYear, format as formatDate } from 'date-fns';
+import { chain, sumBy } from 'lodash';
 import { type FormItemRule, type FormInst } from 'naive-ui'
 
 defineOptions({
@@ -159,6 +161,105 @@ function removeItem(index: number) {
   supplierAccount.value?.items.splice(index, 1)
 }
 
+const showStatisticModal = ref(false)
+const statisticAmountType = ref<'invoice' | 'cheque'>('invoice')
+
+const statisticPeriodType = ref<'all' | 'monthly' | 'quarterly' | 'yearly'>('all')
+const statisticMonthlyPeriod = ref<number | null>()
+const statisticQuarterlyPeriod = ref<number | null>()
+const statisticYearlyPeriod = ref<number | null>()
+
+const statisticPeriodOptions = computed(() => {
+  const monthly = chain(supplierAccounts.value)
+    .flatMap(supplierAccount => supplierAccount.items)
+    .map(item => {
+      if (statisticAmountType.value === 'invoice')
+        return startOfMonth(item.invoiceDate).getTime()
+      return startOfMonth(item.chequeDate).getTime()
+    })
+    .uniq()
+    .sortBy()
+    .value()
+
+  const quarterly = chain(monthly)
+    .map(date => startOfQuarter(date).getTime())
+    .uniq()
+    .value()
+
+  const yearly = chain(monthly)
+    .map(date => startOfYear(date).getTime())
+    .uniq()
+    .value()
+
+  return {
+    monthly: monthly.map(date => ({
+      label: formatDate(new Date(date), 'yyyy-MM'),
+      value: date,
+    })),
+    quarterly: quarterly.map(date => ({
+      label: formatDate(new Date(date), 'yyyy-QQQ'),
+      value: date,
+    })),
+    yearly: yearly.map(date => ({
+      label: formatDate(new Date(date), 'yyyy'),
+      value: date,
+    })),
+  }
+})
+
+
+const statistic = computed(() => {
+  switch (statisticPeriodType.value) {
+    case 'all':
+      break;
+    case 'monthly':
+      if (!statisticMonthlyPeriod.value) return null
+      break;
+    case 'quarterly':
+      if (!statisticQuarterlyPeriod.value) return null
+      break;
+    case 'yearly':
+      if (!statisticYearlyPeriod.value) return null
+      break;
+  }
+
+  const suppliers = chain(supplierAccounts.value)
+    .map((supplierAccount) => {
+      return {
+        supplierName: supplierAccount.supplierName,
+        totalAmount: sumBy(supplierAccount.items, item => {
+          switch (statisticPeriodType.value) {
+            case 'all':
+              break;
+            case 'monthly':
+              if (statisticMonthlyPeriod.value !== startOfMonth(item.invoiceDate).getTime()) return 0
+              break;
+            case 'quarterly':
+              if (statisticQuarterlyPeriod.value !== startOfQuarter(item.invoiceDate).getTime()) return 0
+              break;
+            case 'yearly':
+              if (statisticYearlyPeriod.value !== startOfYear(item.invoiceDate).getTime()) return 0
+              break;
+          }
+
+          if (statisticAmountType.value === 'invoice')
+            return item.invoiceAmount
+          else
+            return item.chequeAmount
+        })
+      }
+    })
+    .sortBy(item => -item.totalAmount)
+    .value()
+
+  const totalAmount = sumBy(suppliers, item => item.totalAmount)
+
+  return {
+    suppliers,
+    totalAmount,
+  }
+})
+
 const draggableRow = ref<number>()
 useEventListener('mouseup', () => {
   draggableRow.value = -1
@@ -228,6 +329,7 @@ function upload() {
       template(#trigger)
         n-button(title="Upload" type="info") Restore
     n-button(@click="download()" title="Download" type="success") Backup
+    n-button(@click="showStatisticModal=true" title="Statistics" type="warning") Statistics
   .flex.gap-x-2.py-2.items-center
     .text-xl Supplier:
     n-select(v-model:value="selectedSupplierName" :options="suppliersOption" size="large" filterable clearable)
@@ -313,6 +415,41 @@ function upload() {
         n-input(v-model:value="updateSupplierForm.supplierName" placeholder="Supplier Name" @keydown.enter.prevent="updateSupplier")
     template(#action)
       n-button(@click="updateSupplier" type="primary") OK
+
+  n-modal(v-model:show="showStatisticModal" preset="dialog" style="width: calc(100vw - 200px); height: calc(100vh - 200px);")
+    template(#header)
+      .flex.items-center.gap-x-2.w-full Statistic
+        n-radio-group(v-model:value="statisticAmountType")
+          n-radio-button(value="invoice") Invoice
+          n-radio-button(value="cheque") Cheque
+        n-radio-group(v-model:value="statisticPeriodType")
+          n-radio-button(value="all") All
+          n-radio-button(value="monthly") Monthly
+          n-radio-button(value="quarterly") Quarterly
+          n-radio-button(value="yearly") Yearly
+        .w-50
+          n-select(v-show="statisticPeriodType === 'monthly'" v-model:value="statisticMonthlyPeriod" :options="statisticPeriodOptions.monthly" filterable clearable)
+          n-select(v-show="statisticPeriodType === 'quarterly'" v-model:value="statisticQuarterlyPeriod" :options="statisticPeriodOptions.quarterly" filterable clearable)
+          n-select(v-show="statisticPeriodType === 'yearly'" v-model:value="statisticYearlyPeriod" :options="statisticPeriodOptions.yearly" filterable clearable)
+    n-scrollbar.pr-2(style="height: calc(100vh - 280px);")
+      n-table(v-if="statistic" style="overflow: visible;" size="small")
+        thead.sticky.top-0.z-3
+          tr
+            th Supplier
+            th
+              span.cursor-pointer {{ statisticAmountType == 'invoice' ? 'Invoice' : 'Cheque'  }} Amount
+              n-tag.float-right.font-bold(type="success") SUM: {{ format(statistic.totalAmount) }}
+        tbody
+          tr(v-for="supplierAccount in statistic.suppliers")
+            td {{ supplierAccount.supplierName }}
+            td.text-right.relative.font-bold {{ format(supplierAccount.totalAmount) }}
+              .absolute.left-0.bg-gray.h-full.top-0.opacity-30(:style="`width: ${supplierAccount.totalAmount / statistic.totalAmount * 100}%`")
+      .flex.items-center.justify-center.w-full(v-else size="huge" style="height: calc(100vh - 280px);")
+        n-empty
+          .text-4xl Please select a period to view statistic.
+          n-select(v-show="statisticPeriodType === 'monthly'" v-model:value="statisticMonthlyPeriod" :options="statisticPeriodOptions.monthly" filterable clearable size="large")
+          n-select(v-show="statisticPeriodType === 'quarterly'" v-model:value="statisticQuarterlyPeriod" :options="statisticPeriodOptions.quarterly" filterable clearable size="large")
+          n-select(v-show="statisticPeriodType === 'yearly'" v-model:value="statisticYearlyPeriod" :options="statisticPeriodOptions.yearly" filterable clearable size="large")
 </template>
 
 <style lang="scss" scoped>
