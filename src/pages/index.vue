@@ -380,11 +380,13 @@ function upload() {
         div All unsaved changes will be lost.
         div Please backup your supplier records before restoring.
       template(#trigger)
-        n-button(title="Upload" type="info") Restore
-    n-button(@click="download()" title="Download" type="success") Backup
-    n-button(@click="showStatisticModal=true" title="Statistics" type="warning") Statistics
-    n-badge(:value="pendingInvoices.count" type="error")
-      n-button(@click="showPendingInvoicesModal=true" title="Pending Invoices" type="error" :disabled="!pendingInvoices.count") Pending Invoices
+        n-button(type="info") #[.i-carbon-upload] Restore
+    n-button(@click="download()" type="success") #[.i-carbon-download] Backup
+    n-button(@click="showStatisticModal=true" type="warning") #[.i-carbon-chart-bar] Statistics
+    n-tooltip(:disabled="!!pendingInvoices.count") You have no pending invoices.
+      template(#trigger)
+        n-badge(:value="pendingInvoices.count" type="error")
+          n-button(@click="showPendingInvoicesModal=true" type="error" :disabled="!pendingInvoices.count") #[.i-carbon-document] Pending Invoices
   .flex.gap-x-2.py-2.items-center
     .text-xl Supplier:
     n-select(v-model:value="selectedSupplierName" :options="suppliersOption" size="large" filterable clearable)
