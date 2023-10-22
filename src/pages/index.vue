@@ -160,6 +160,40 @@ function removeItem(index: number) {
   supplierAccount.value?.items.splice(index, 1)
 }
 
+const draggableRow = ref<number>()
+useEventListener('mouseup', () => {
+  draggableRow.value = -1
+})
+const draggingIndex = ref(-1)
+
+function dropItem(index: number) {
+  const items = supplierAccount.value?.items
+  if (!items) return
+  const draggingTransaction = items[draggingIndex.value]
+  items.splice(draggingIndex.value, 1)
+  items.splice(index, 0, draggingTransaction)
+}
+
+const invoiceDateFilter = ref<[number, number]>()
+const chequeDateFilter = ref<[number, number]>()
+
+const filteredSupplierItems = computed(() => {
+  if (!supplierAccount.value) return []
+  const items = supplierAccount.value.items
+  if (!invoiceDateFilter.value && !chequeDateFilter.value) return items
+  return items.filter(item => {
+    if (invoiceDateFilter.value) {
+      if (!item.invoiceDate) return false
+      if (item.invoiceDate < invoiceDateFilter.value[0] || item.invoiceDate > invoiceDateFilter.value[1]) return false
+    }
+    if (chequeDateFilter.value) {
+      if (!item.chequeDate) return false
+      if (item.chequeDate < chequeDateFilter.value[0] || item.chequeDate > chequeDateFilter.value[1]) return false
+    }
+    return true
+  })
+})
+
 const showStatisticModal = ref(false)
 const statisticAmountType = ref<'invoice' | 'cheque'>('invoice')
 
@@ -277,20 +311,6 @@ const statistic = computed(() => {
   }
 })
 
-const draggableRow = ref<number>()
-useEventListener('mouseup', () => {
-  draggableRow.value = -1
-})
-const draggingIndex = ref(-1)
-
-function dropItem(index: number) {
-  const items = supplierAccount.value?.items
-  if (!items) return
-  const draggingTransaction = items[draggingIndex.value]
-  items.splice(draggingIndex.value, 1)
-  items.splice(index, 0, draggingTransaction)
-}
-
 function download() {
   const element = document.createElement('a')
   element.setAttribute('href', `data:text/plain;charset=utf-8,${encodeURIComponent(JSON.stringify(supplierAccounts.value))}`)
@@ -361,18 +381,33 @@ function upload() {
       thead.sticky.top-0.z-3
         tr
           th.w-10.min-w-10
-          th.w-38.min-w-38 Date
+          th.w-38.min-w-38
+            .flex.gap-x-2 Date
+              n-popover(trigger="click")
+                template(#trigger)
+                  n-badge(:show="!!invoiceDateFilter" dot)
+                    n-button(text) #[.i-carbon-filter]
+                n-date-picker(v-model:value="invoiceDateFilter" type="daterange" clearable)
           th.w-50.min-w-50 Invoice No.
-          th.w-50.min-w-50 Amt #[n-tag(type="success") SUM: {{ format(supplierAccount.items.reduce((sum, item) => sum + item.invoiceAmount, 0)) }}]
-          th.w-38.min-w-38 Date
+          th.w-50.min-w-50 Amt #[n-tag(type="success") SUM: {{ format(sumBy(filteredSupplierItems, item => item.invoiceAmount)) }}]
+          th.w-38.min-w-38
+            .flex.gap-x-2 Date
+                n-popover(trigger="click")
+                  template(#trigger)
+                    n-badge(:show="!!chequeDateFilter" dot)
+                      n-button(text) #[.i-carbon-filter]
+                  n-date-picker(v-model:value="chequeDateFilter" type="daterange" clearable)
           th.w-50.min-w-50 Cheque No.
-          th.w-50.min-w-50 Amt #[n-tag(type="success") SUM: {{ format(supplierAccount.items.reduce((sum, item) => sum + item.chequeAmount, 0)) }}]
+          th.w-50.min-w-50 Amt #[n-tag(type="success") SUM: {{ format(sumBy(filteredSupplierItems, item => item.chequeAmount)) }}]
           th.min-w-30 Remark
           th.w-10
-            .i-carbon-add-alt(hover="bg-green-7 cursor-pointer" @click="addItem")
+            n-tooltip(:disabled="!invoiceDateFilter && !chequeDateFilter") Disabled when filter is applied.
+              template(#trigger)
+                n-button(text @click="addItem" :disabled="!!invoiceDateFilter || !!chequeDateFilter")
+                  .i-carbon-add-alt(hover="bg-green-7")
       tbody(v-if="supplierAccount")
         tr(
-          v-for="item, i in supplierAccount.items"
+          v-for="item, i in filteredSupplierItems"
           :draggable="i === draggableRow"
           @dragstart="draggingIndex = i"
           @dragover.prevent
