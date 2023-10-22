@@ -311,6 +311,22 @@ const statistic = computed(() => {
   }
 })
 
+const showPendingInvoicesModal = ref(false)
+const pendingInvoices = computed(() => {
+  const suppliers = supplierAccounts.value
+    .map(supplierAccount => ({
+      supplierName: supplierAccount.supplierName,
+      items: supplierAccount.items.filter(item => !item.chequeDate)
+    }))
+    .filter(supplierAccount => supplierAccount.items.length)
+
+  const count = sumBy(suppliers, supplierAccount => supplierAccount.items.length)
+  return {
+    suppliers,
+    count,
+  }
+})
+
 function download() {
   const element = document.createElement('a')
   element.setAttribute('href', `data:text/plain;charset=utf-8,${encodeURIComponent(JSON.stringify(supplierAccounts.value))}`)
@@ -367,6 +383,8 @@ function upload() {
         n-button(title="Upload" type="info") Restore
     n-button(@click="download()" title="Download" type="success") Backup
     n-button(@click="showStatisticModal=true" title="Statistics" type="warning") Statistics
+    n-badge(:value="pendingInvoices.count" type="error")
+      n-button(@click="showPendingInvoicesModal=true" title="Pending Invoices" type="error" :disabled="!pendingInvoices.count") Pending Invoices
   .flex.gap-x-2.py-2.items-center
     .text-xl Supplier:
     n-select(v-model:value="selectedSupplierName" :options="suppliersOption" size="large" filterable clearable)
@@ -392,11 +410,11 @@ function upload() {
           th.w-50.min-w-50 Amt #[n-tag(type="success") SUM: {{ format(sumBy(filteredSupplierItems, item => item.invoiceAmount)) }}]
           th.w-38.min-w-38
             .flex.gap-x-2 Date
-                n-popover(trigger="click")
-                  template(#trigger)
-                    n-badge(:show="!!chequeDateFilter" dot)
-                      n-button(text) #[.i-carbon-filter]
-                  n-date-picker(v-model:value="chequeDateFilter" type="daterange" clearable)
+              n-popover(trigger="click")
+                template(#trigger)
+                  n-badge(:show="!!chequeDateFilter" dot)
+                    n-button(text) #[.i-carbon-filter]
+                n-date-picker(v-model:value="chequeDateFilter" type="daterange" clearable)
           th.w-50.min-w-50 Cheque No.
           th.w-50.min-w-50 Amt #[n-tag(type="success") SUM: {{ format(sumBy(filteredSupplierItems, item => item.chequeAmount)) }}]
           th.min-w-30 Remark
@@ -502,8 +520,34 @@ function upload() {
           n-select(v-show="statisticPeriodType === 'monthly'" v-model:value="statisticMonthlyPeriod" :options="statisticPeriodOptions.monthly" filterable clearable size="large")
           n-select(v-show="statisticPeriodType === 'quarterly'" v-model:value="statisticQuarterlyPeriod" :options="statisticPeriodOptions.quarterly" filterable clearable size="large")
           n-select(v-show="statisticPeriodType === 'yearly'" v-model:value="statisticYearlyPeriod" :options="statisticPeriodOptions.yearly" filterable clearable size="large")
+
+  n-modal(v-model:show="showPendingInvoicesModal" preset="dialog" title="Pending Invoices" style="width: calc(100vw - 200px); height: calc(100vh - 200px);")
+    n-scrollbar.pr-2(style="height: calc(100vh - 280px);")
+      template(v-for="supplierAccount in pendingInvoices.suppliers")
+        n-table(style="overflow: visible;" size="small" :single-line="false")
+          thead.sticky.top-0.z-3
+            tr
+              th(colspan="4")
+                .text-xl.font-bold.text-center {{ supplierAccount.supplierName }}
+            tr
+              th.w-35 Date
+              th.w-50 Invoice No
+              th.w-60 Amount
+                n-tag.font-mono.float-right(type="error") SUM: {{ format(sumBy(supplierAccount.items, item => item.invoiceAmount)) }}
+              th Remark
+          tbody
+            tr(v-for="item in supplierAccount.items")
+              td.font-mono {{ item.invoiceDate && formatDate(new Date(item.invoiceDate), 'yyyy-MM-dd') }}
+              td.font-mono {{ item.invoiceNo }}
+              td.font-mono.text-right {{ format(item.invoiceAmount) }}
+              td {{ item.remark }}
+
 </template>
 
 <style lang="scss" scoped>
 @import "~/styles/common.scss";
+
+.font-mono {
+  font-family: Consolas, 'Courier New', Courier, monospace;
+}
 </style>
