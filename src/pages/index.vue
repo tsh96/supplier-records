@@ -13,25 +13,24 @@ type SupplierAccount = {
 }
 
 type SupplierAccountItem = {
-  invoiceDate: number,
+  invoiceDate: number | null,
   invoiceNo: string,
   invoiceAmount: number,
-  chequeDate: number,
+  chequeDate: number | null,
   chequeNo: string,
   chequeAmount: number,
   remark: string,
 }
 
 const supplierAccounts = useLocalStorage('supplierAccounts', [] as SupplierAccount[])
+const selectedSupplierName = useLocalStorage<string | null>('selectedSupplierName', null)
 
-const suppliersOption = computed(() => supplierAccounts.value.map((supplierAccount) => {
-  return {
+const suppliersOption = computed(() =>
+  supplierAccounts.value.map((supplierAccount) => ({
     label: supplierAccount.supplierName,
     value: supplierAccount.supplierName,
-  }
-}))
-
-const selectedSupplierName = useLocalStorage<string | null>('selectedSupplierName', null)
+  })).sort((a, b) => a.label.localeCompare(b.label))
+)
 
 const supplierAccount = computed(() => {
   const supplierName = selectedSupplierName.value
@@ -49,10 +48,10 @@ function addItem() {
   today.setHours(0, 0, 0, 0)
   if (!supplierAccount.value) return
   supplierAccount.value.items.push({
-    invoiceDate: today.getTime(),
+    invoiceDate: null,
     invoiceNo: '',
     invoiceAmount: 0,
-    chequeDate: today.getTime(),
+    chequeDate: null,
     chequeNo: '',
     chequeAmount: 0,
     remark: '',
@@ -174,9 +173,10 @@ const statisticPeriodOptions = computed(() => {
     .flatMap(supplierAccount => supplierAccount.items)
     .map(item => {
       if (statisticAmountType.value === 'invoice')
-        return startOfMonth(item.invoiceDate).getTime()
-      return startOfMonth(item.chequeDate).getTime()
+        return item.invoiceDate && startOfMonth(item.invoiceDate).getTime()
+      return item.chequeDate && startOfMonth(item.chequeDate).getTime()
     })
+    .compact()
     .uniq()
     .sortBy()
     .value()
@@ -228,24 +228,41 @@ const statistic = computed(() => {
       return {
         supplierName: supplierAccount.supplierName,
         totalAmount: sumBy(supplierAccount.items, item => {
-          switch (statisticPeriodType.value) {
-            case 'all':
-              break;
-            case 'monthly':
-              if (statisticMonthlyPeriod.value !== startOfMonth(item.invoiceDate).getTime()) return 0
-              break;
-            case 'quarterly':
-              if (statisticQuarterlyPeriod.value !== startOfQuarter(item.invoiceDate).getTime()) return 0
-              break;
-            case 'yearly':
-              if (statisticYearlyPeriod.value !== startOfYear(item.invoiceDate).getTime()) return 0
-              break;
-          }
 
-          if (statisticAmountType.value === 'invoice')
+          if (statisticAmountType.value === 'invoice') {
+            if (!item.invoiceDate) return 0
+            switch (statisticPeriodType.value) {
+              case 'all':
+                break;
+              case 'monthly':
+                if (statisticMonthlyPeriod.value !== startOfMonth(item.invoiceDate).getTime()) return 0
+                break;
+              case 'quarterly':
+                if (statisticQuarterlyPeriod.value !== startOfQuarter(item.invoiceDate).getTime()) return 0
+                break;
+              case 'yearly':
+                if (statisticYearlyPeriod.value !== startOfYear(item.invoiceDate).getTime()) return 0
+                break;
+            }
             return item.invoiceAmount
-          else
+          }
+          else {
+            if (!item.chequeDate) return 0
+            switch (statisticPeriodType.value) {
+              case 'all':
+                break;
+              case 'monthly':
+                if (statisticMonthlyPeriod.value !== startOfMonth(item.chequeDate).getTime()) return 0
+                break;
+              case 'quarterly':
+                if (statisticQuarterlyPeriod.value !== startOfQuarter(item.chequeDate).getTime()) return 0
+                break;
+              case 'yearly':
+                if (statisticYearlyPeriod.value !== startOfYear(item.chequeDate).getTime()) return 0
+                break;
+            }
             return item.chequeAmount
+          }
         })
       }
     })
@@ -363,7 +380,7 @@ function upload() {
         )
           td.cursor-move(@mousedown="draggableRow = i") {{ i+1 }}
           td
-            n-date-picker(v-model:value="item.invoiceDate" type="date" size="small")
+            n-date-picker(v-model:value="item.invoiceDate" type="date" size="small" clearable)
           td
             n-input(v-model:value="item.invoiceNo" size="small")
           td.text-right
@@ -376,7 +393,7 @@ function upload() {
               size="small"
             )
           td
-            n-date-picker(v-model:value="item.chequeDate" type="date" size="small")
+            n-date-picker(v-model:value="item.chequeDate" type="date" size="small" clearable)
           td
             n-input(v-model:value="item.chequeNo" size="small")
           td.text-right
