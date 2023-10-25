@@ -2,6 +2,7 @@
 import { startOfMonth, startOfQuarter, startOfYear, format as formatDate } from 'date-fns';
 import { chain, sumBy } from 'lodash';
 import { type FormItemRule, type FormInst } from 'naive-ui'
+import { v4 as uuidv4 } from 'uuid';
 
 defineOptions({
   name: 'IndexPage',
@@ -13,6 +14,7 @@ type SupplierAccount = {
 }
 
 type SupplierAccountItem = {
+  id: string
   invoiceDate: number | null,
   invoiceNo: string,
   invoiceAmount: number,
@@ -22,6 +24,7 @@ type SupplierAccountItem = {
   remark: string,
 }
 
+const version = useLocalStorage('version', '1.0.0')
 const supplierAccounts = useLocalStorage('supplierAccounts', [] as SupplierAccount[])
 const selectedSupplierName = useLocalStorage<string | null>('selectedSupplierName', null)
 
@@ -42,12 +45,29 @@ const supplierAccount = computed(() => {
   return supplierAccount
 })
 
+onMounted(() => {
+  if (version.value === '1.0.0') {
+    supplierAccounts.value.forEach((supplierAccount) => {
+      supplierAccount.items.forEach((item) => {
+        item.id = uuidv4()
+      })
+    })
+    version.value = '1.1.0'
+  }
+})
+
+watch(() => supplierAccount.value?.items, (items) => {
+  if (!items) return
+  items.sort((a, b) => (a.invoiceDate || Infinity) - (b.invoiceDate || Infinity))
+}, { deep: true })
+
 
 function addItem() {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   if (!supplierAccount.value) return
   supplierAccount.value.items.push({
+    id: uuidv4(),
     invoiceDate: null,
     invoiceNo: '',
     invoiceAmount: 0,
@@ -426,47 +446,49 @@ function upload() {
                 n-button(text @click="addItem" :disabled="!!invoiceDateFilter || !!chequeDateFilter")
                   .i-carbon-add-alt(hover="bg-green-7")
       tbody(v-if="supplierAccount")
-        tr(
-          v-for="item, i in filteredSupplierItems"
-          :draggable="i === draggableRow"
-          @dragstart="draggingIndex = i"
-          @dragover.prevent
-          @drop="dropItem(i)"
-        )
-          td.cursor-move(@mousedown="draggableRow = i") {{ i+1 }}
-          td
-            n-date-picker(v-model:value="item.invoiceDate" type="date" size="small" clearable)
-          td
-            n-input(v-model:value="item.invoiceNo" size="small")
-          td.text-right
-            n-input-number(
-              v-model:value="item.invoiceAmount"
-              step="0.01"
-              :format="format"
-              :parse="parse"
-              :show-button="false" placeholder=""
-              size="small"
-            )
-          td
-            n-date-picker(v-model:value="item.chequeDate" type="date" size="small" clearable)
-          td
-            n-input(v-model:value="item.chequeNo" size="small")
-          td.text-right
-            n-input-number(
-              v-model:value="item.chequeAmount"
-              step="0.01"
-              :format="format"
-              :parse="parse"
-              :show-button="false" placeholder=""
-              size="small"
-            )
-          td.text-right
-            n-tooltip(:disabled="!item.remark")
-              div {{ item.remark }}
-              template(#trigger)
-                n-input(v-model:value="item.remark" size="small")
-          td
-            .i-carbon-subtract-alt(hover="bg-red-7 cursor-pointer" @click="removeItem(i)")
+        transition-group(name="table-row")
+          tr(
+            v-for="item, i in filteredSupplierItems"
+            :draggable="i === draggableRow"
+            @dragstart="draggingIndex = i"
+            @dragover.prevent
+            @drop="dropItem(i)"
+            :key="item.id"
+          )
+            td.cursor-move(@mousedown="draggableRow = i") {{ i+1 }}
+            td
+              n-date-picker(v-model:value="item.invoiceDate" type="date" size="small" clearable)
+            td
+              n-input(v-model:value="item.invoiceNo" size="small")
+            td.text-right
+              n-input-number(
+                v-model:value="item.invoiceAmount"
+                step="0.01"
+                :format="format"
+                :parse="parse"
+                :show-button="false" placeholder=""
+                size="small"
+              )
+            td
+              n-date-picker(v-model:value="item.chequeDate" type="date" size="small" clearable)
+            td
+              n-input(v-model:value="item.chequeNo" size="small")
+            td.text-right
+              n-input-number(
+                v-model:value="item.chequeAmount"
+                step="0.01"
+                :format="format"
+                :parse="parse"
+                :show-button="false" placeholder=""
+                size="small"
+              )
+            td.text-right
+              n-tooltip(:disabled="!item.remark")
+                div {{ item.remark }}
+                template(#trigger)
+                  n-input(v-model:value="item.remark" size="small")
+            td
+              .i-carbon-subtract-alt(hover="bg-red-7 cursor-pointer" @click="removeItem(i)")
     .flex.flex-col.items-center.justify-center.h-full(v-else)
       n-empty(size="huge")
         div
@@ -551,5 +573,16 @@ function upload() {
 
 .font-mono {
   font-family: Consolas, 'Courier New', Courier, monospace;
+}
+
+.table-row-move, /* apply transition to moving elements */
+.table-row-enter-active,
+.table-row-leave-active {
+  transition: all 0.5s ease;
+}
+
+.table-row-enter-from,
+.table-row-leave-to {
+  opacity: 0;
 }
 </style>
