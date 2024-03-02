@@ -201,7 +201,7 @@ const chequeDateFilter = ref<[number, number]>()
 
 const filteredSupplierItems = computed(() => {
   if (!supplierAccount.value) return []
-  const items = supplierAccount.value.items.filter(item => item.invoiceDate && startOfYear(item.invoiceDate).getFullYear() === yearFilter.value)
+  const items = supplierAccount.value.items.filter(item => !item.invoiceDate || startOfYear(item.invoiceDate).getFullYear() === yearFilter.value)
   if (!invoiceDateFilter.value && !chequeDateFilter.value) return items
   return items.filter(item => {
     if (invoiceDateFilter.value) {
