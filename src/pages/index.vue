@@ -399,6 +399,7 @@ function upload() {
 <template lang="pug">
 .mx-8.flex.flex-col.h-screen.gap-y-2
   h1.gap-x-2.py-1(text="4xl" flex items-center) Supplier Records
+    sub(text="sm") v1.0.1
     n-popconfirm(@positive-click="upload()")
       div
         div Restore supplier records from a file?
