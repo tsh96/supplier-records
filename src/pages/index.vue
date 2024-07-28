@@ -178,8 +178,11 @@ function deleteSupplier() {
 }
 
 
-function removeItem(index: number) {
-  supplierAccount.value?.items.splice(index, 1)
+function removeItem(id: string) {
+  if (!supplierAccount.value) return
+  const index = supplierAccount.value.items.findIndex((item) => item.id === id)
+  if (index === -1) return
+  supplierAccount.value.items.splice(index, 1)
 }
 
 const draggableRow = ref<number>()
@@ -493,7 +496,7 @@ function upload() {
                 template(#trigger)
                   n-input(v-model:value="item.remark" size="small")
             td
-              .i-carbon-subtract-alt(hover="bg-red-7 cursor-pointer" @click="removeItem(i)")
+              .i-carbon-subtract-alt(hover="bg-red-7 cursor-pointer" @click="removeItem(item.id)")
     .flex.flex-col.items-center.justify-center.h-full(v-else)
       n-empty(size="huge")
         div
